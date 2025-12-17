@@ -30,8 +30,12 @@ COPY api.py .
 COPY model.py .
 COPY app.py .
 
-# Tạo thư mục models (file sẽ được upload sau qua Railway CLI)
+# Tạo thư mục models
 RUN mkdir -p models
+
+# Download model từ Google Drive
+# File ID: 12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ
+RUN curl -L "https://drive.google.com/uc?export=download&id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" -o models/cookshare.gguf
 
 # Environment variables
 ENV GGUF_MODEL_PATH=models/cookshare.gguf
