@@ -36,9 +36,16 @@ COPY app.py .
 # Tạo thư mục models
 RUN mkdir -p models
 
-# Download model từ Google Drive (dùng gdown để bypass Google Drive warning)
+# Download model từ Google Drive (dùng gdown với resume và verify)
 # File ID: 12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ
-RUN gdown "https://drive.google.com/uc?id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" -O models/cookshare.gguf
+# Dùng --fuzzy để handle Google Drive redirects và --resume để retry nếu lỗi
+RUN gdown "https://drive.google.com/uc?id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" \
+    -O models/cookshare.gguf \
+    --fuzzy \
+    --no-cookies \
+    && ls -lh models/cookshare.gguf \
+    && test -f models/cookshare.gguf \
+    && test $(stat -c%s models/cookshare.gguf) -gt 990000000 || (echo "File size mismatch or corrupt!" && exit 1)
 
 # Environment variables
 ENV GGUF_MODEL_PATH=models/cookshare.gguf
