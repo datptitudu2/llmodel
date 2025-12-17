@@ -37,9 +37,9 @@ COPY app.py .
 RUN mkdir -p models
 
 # Download model từ Google Drive (dùng gdown với resume và verify)
-# File ID: 12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ
+# File ID: 1s8XOxc5NOzrulBnNdWRFe3rbUOBmhmtn (file mới convert lại)
 # Dùng --fuzzy để handle Google Drive redirects và --resume để retry nếu lỗi
-RUN gdown "https://drive.google.com/uc?id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" \
+RUN gdown "https://drive.google.com/uc?id=1s8XOxc5NOzrulBnNdWRFe3rbUOBmhmtn" \
     -O models/cookshare.gguf \
     --fuzzy \
     --no-cookies \
