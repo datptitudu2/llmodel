@@ -21,8 +21,10 @@ COPY requirements.txt .
 
 # Install Python dependencies
 # Note: llama-cpp-python cần build từ source
+# Update pip và install với version mới nhất để support Qwen2
 RUN pip install --no-cache-dir --upgrade pip && \
     CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS" \
+    pip install --no-cache-dir --upgrade llama-cpp-python && \
     pip install --no-cache-dir -r requirements.txt
 
 # Install gdown để download từ Google Drive

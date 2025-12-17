@@ -8,7 +8,8 @@ uvicorn[standard]==0.27.0
 pydantic==2.5.3
 
 # GGUF Model Engine (Model đã train)
-llama-cpp-python==0.2.55
+# Update lên version mới nhất để support Qwen2 đầy đủ
+llama-cpp-python>=0.2.56
 
 # Utilities
 python-dotenv==1.0.0
