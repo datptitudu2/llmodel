@@ -9,17 +9,17 @@ venv/
 ENV/
 .venv
 
-# Model files (too large for git) - NHƯNG CẦN FILE GGUF!
+# Model files (too large for git - >100MB)
+# File GGUF sẽ upload trực tiếp lên Railway, không push lên GitHub
 *.bin
 *.safetensors
 *.pt
 *.pth
+*.gguf
 models/*.safetensors
+models/*.gguf
 models/cookbot-merged/
 checkpoints/
-
-# QUAN TRỌNG: Allow file GGUF
-!models/cookshare.gguf
 
 # IDE
 .vscode/
