@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS" \
     pip install --no-cache-dir -r requirements.txt
 
+# Install gdown để download từ Google Drive
+RUN pip install --no-cache-dir gdown
+
 # Copy application code
 COPY api.py .
 COPY model.py .
@@ -33,9 +36,9 @@ COPY app.py .
 # Tạo thư mục models
 RUN mkdir -p models
 
-# Download model từ Google Drive
+# Download model từ Google Drive (dùng gdown để bypass Google Drive warning)
 # File ID: 12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ
-RUN curl -L "https://drive.google.com/uc?export=download&id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" -o models/cookshare.gguf
+RUN gdown "https://drive.google.com/uc?id=12ST6kbPIycAnbBf_4koW5qNnS28FdGNJ" -O models/cookshare.gguf
 
 # Environment variables
 ENV GGUF_MODEL_PATH=models/cookshare.gguf
