@@ -48,10 +48,13 @@ class CookShareChatbot:
         """Initialize model engine - CHỈ dùng model đã train"""
         # Kiểm tra file GGUF có tồn tại không
         if not os.path.exists(self.gguf_model_path):
-            error_msg = f"❌ KHÔNG TÌM THẤY MODEL ĐÃ TRAIN: {self.gguf_model_path}\n" \
-                       f"👉 Model đã train là bắt buộc. Vui lòng đảm bảo file cookshare.gguf có trong repo."
-            print(error_msg)
-            raise FileNotFoundError(error_msg)
+            warning_msg = f"⚠️  CHƯA TÌM THẤY MODEL: {self.gguf_model_path}\n" \
+                         f"👉 Service sẽ start nhưng chưa thể trả lời.\n" \
+                         f"👉 Upload file model qua Railway CLI: railway upload models/cookshare.gguf\n" \
+                         f"👉 Sau đó restart service."
+            print(warning_msg)
+            self.llm = None  # Model chưa load
+            return
         
         print(f"🔍 Tìm thấy model đã train: {self.gguf_model_path}")
         self._load_gguf_model()
@@ -172,6 +175,16 @@ class CookShareChatbot:
         Returns:
             Response từ chatbot
         """
+        # Kiểm tra model đã load chưa
+        if self.llm is None:
+            if not os.path.exists(self.gguf_model_path):
+                return "⚠️ Model chưa được upload. Vui lòng upload file cookshare.gguf qua Railway CLI và restart service."
+            # Thử load lại model (có thể đã upload sau khi start)
+            print("🔄 Thử load model lại...")
+            self._load_gguf_model()
+            if self.llm is None:
+                return "⚠️ Không thể load model. Vui lòng kiểm tra logs."
+        
         if history is None:
             history = []
         
