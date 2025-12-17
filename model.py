@@ -77,14 +77,16 @@ class CookShareChatbot:
                 pass
             
             # Load model đã train
-            # Tối ưu cho tốc độ: giảm n_ctx, tắt verbose, tăng threads
+            # Tối ưu cho tốc độ: giảm n_ctx, tắt verbose, tăng threads, dùng mmap
             self.llm = Llama(
                 model_path=self.gguf_model_path,
-                n_ctx=1024,           # Giảm context window để tăng tốc
-                n_batch=256,          # Giảm batch size để tăng tốc
+                n_ctx=512,            # Giảm context window xuống 512 để tăng tốc đáng kể
+                n_batch=128,          # Giảm batch size xuống 128 để tăng tốc
                 n_gpu_layers=n_gpu_layers,
                 verbose=False,        # Tắt verbose để tăng tốc
-                n_threads=8           # Tăng threads (Railway có 8 vCPUs)
+                n_threads=8,          # Tăng threads (Railway có 8 vCPUs)
+                use_mmap=True,        # Dùng memory mapping để tăng tốc load
+                use_mlock=False       # Không lock memory (tiết kiệm RAM)
             )
             
             print("✅ Model đã train loaded successfully!")
@@ -166,6 +168,10 @@ class CookShareChatbot:
         ]
         for tag in tags_to_remove:
             text = text.replace(tag, "")
+        
+        # Clean up multiple newlines (giữ lại \n\n nhưng loại bỏ \n\n\n\n...)
+        import re
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Thay nhiều \n bằng \n\n
         
         return text.strip()
     
