@@ -77,14 +77,14 @@ class CookShareChatbot:
                 pass
             
             # Load model đã train
-            # Thử với verbose=True để xem lỗi chi tiết
+            # Tối ưu cho tốc độ: giảm n_ctx, tắt verbose, tăng threads
             self.llm = Llama(
                 model_path=self.gguf_model_path,
-                n_ctx=2048,           # Context window
-                n_batch=512,          # Batch size for prompt processing
+                n_ctx=1024,           # Giảm context window để tăng tốc
+                n_batch=256,          # Giảm batch size để tăng tốc
                 n_gpu_layers=n_gpu_layers,
-                verbose=True,         # Enable verbose để debug
-                n_threads=4           # Số threads cho CPU
+                verbose=False,        # Tắt verbose để tăng tốc
+                n_threads=8           # Tăng threads (Railway có 8 vCPUs)
             )
             
             print("✅ Model đã train loaded successfully!")
