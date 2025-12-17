@@ -170,18 +170,18 @@ Trả lời thân thiện bằng tiếng Việt."""
         if self.api_token:
             headers["Authorization"] = f"Bearer {self.api_token}"
         
-         payload = {
-             "inputs": self._format_messages(messages),
-             "parameters": {
-                 "max_new_tokens": 512,      # Giảm để tăng tốc và tránh hallucination
-                 "temperature": 0.5,         # Giảm để response chính xác hơn
-                 "top_p": 0.8,               # Giảm để tập trung vào tokens có xác suất cao
-                 "top_k": 40,                # Giới hạn top_k để tránh chọn tokens lạ
-                 "do_sample": True,
-                 "return_full_text": False,
-                 "repetition_penalty": 1.2   # Tránh lặp lại
-             }
-         }
+        payload = {
+            "inputs": self._format_messages(messages),
+            "parameters": {
+                "max_new_tokens": 512,      # Giảm để tăng tốc và tránh hallucination
+                "temperature": 0.5,         # Giảm để response chính xác hơn
+                "top_p": 0.8,               # Giảm để tập trung vào tokens có xác suất cao
+                "top_k": 40,                # Giới hạn top_k để tránh chọn tokens lạ
+                "do_sample": True,
+                "return_full_text": False,
+                "repetition_penalty": 1.2   # Tránh lặp lại
+            }
+        }
         
         try:
             response = requests.post(api_url, json=payload, headers=headers, timeout=60)
@@ -215,17 +215,17 @@ Trả lời thân thiện bằng tiếng Việt."""
             if torch.cuda.is_available():
                 inputs = {k: v.cuda() for k, v in inputs.items()}
             
-             with torch.no_grad():
-                 outputs = self.model.generate(
-                     **inputs,
-                     max_new_tokens=512,      # Giảm để tăng tốc và tránh hallucination
-                     temperature=0.5,         # Giảm để response chính xác hơn
-                     top_p=0.8,               # Giảm để tập trung vào tokens có xác suất cao
-                     top_k=40,                # Giới hạn top_k để tránh chọn tokens lạ
-                     do_sample=True,
-                     pad_token_id=self.tokenizer.eos_token_id,
-                     repetition_penalty=1.2   # Tránh lặp lại
-                 )
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=512,      # Giảm để tăng tốc và tránh hallucination
+                    temperature=0.5,         # Giảm để response chính xác hơn
+                    top_p=0.8,               # Giảm để tập trung vào tokens có xác suất cao
+                    top_k=40,                # Giới hạn top_k để tránh chọn tokens lạ
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    repetition_penalty=1.2   # Tránh lặp lại
+                )
             
             # Decode only new tokens
             response = self.tokenizer.decode(
