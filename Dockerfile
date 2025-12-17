@@ -9,10 +9,11 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (for caching)
@@ -27,10 +28,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY api.py .
 COPY model.py .
+COPY app.py .
 
-# Copy GGUF model (nếu có)
-# Note: Trong production, nên mount volume hoặc download từ cloud storage
-COPY models/ ./models/
+# Tạo thư mục models (file sẽ được upload sau qua Railway CLI)
+RUN mkdir -p models
 
 # Environment variables
 ENV GGUF_MODEL_PATH=models/cookshare.gguf
