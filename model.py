@@ -143,10 +143,10 @@ class CookShareChatbot:
             
             output = self.llm(
                 prompt,
-                max_tokens=512,       # Giảm max_tokens để tăng tốc (đủ cho câu trả lời ngắn gọn)
+                max_tokens=256,       # Giảm xuống 256 để tăng tốc đáng kể (vẫn đủ cho câu trả lời ngắn)
                 temperature=0.7,
                 top_p=0.9,
-                stop=["<|im_end|>", "<|im_start|>"],
+                stop=["<|im_end|>", "<|im_start|>"],  # Stop sớm khi gặp stop token
                 echo=False
             )
             
