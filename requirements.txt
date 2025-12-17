@@ -1,0 +1,27 @@
+# =============================================================================
+# CookShare Chatbot - Requirements
+# =============================================================================
+
+# API Server (Railway deployment)
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+
+# GGUF Model Engine (Model đã train)
+llama-cpp-python==0.2.55
+
+# Utilities
+python-dotenv==1.0.0
+
+# =============================================================================
+# Training Requirements (chỉ cần trên máy training, không cần trên Railway)
+# =============================================================================
+# Uncomment khi training:
+# transformers==4.40.0
+# torch==2.1.0
+# accelerate==0.30.0
+# sentencepiece==0.1.99
+# peft==0.10.0
+# bitsandbytes==0.42.0
+# datasets==2.18.0
+# trl==0.8.0

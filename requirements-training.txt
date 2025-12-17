@@ -1,0 +1,28 @@
+# =============================================================================
+# CookShare Chatbot - Training Requirements
+# Cài trên máy local để fine-tune model
+# =============================================================================
+
+# PyTorch (chọn phiên bản phù hợp với CUDA)
+# CPU: pip install torch
+# CUDA 11.8: pip install torch --index-url https://download.pytorch.org/whl/cu118
+# CUDA 12.1: pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+
+# Transformers & Training
+transformers==4.40.0
+accelerate==0.30.0
+sentencepiece==0.1.99
+
+# LoRA Fine-tuning
+peft==0.10.0
+bitsandbytes==0.42.0
+datasets==2.18.0
+trl==0.8.0
+
+# GGUF Conversion (optional, có thể dùng llama.cpp CLI)
+# llama-cpp-python==0.2.55
+
+# Utilities
+huggingface-hub==0.22.0
+

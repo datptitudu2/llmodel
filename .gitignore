@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Model files (too large for git) - NHƯNG CẦN FILE GGUF!
+*.bin
+*.safetensors
+*.pt
+*.pth
+models/*.safetensors
+models/cookbot-merged/
+checkpoints/
+
+# QUAN TRỌNG: Allow file GGUF
+!models/cookshare.gguf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+logs/
