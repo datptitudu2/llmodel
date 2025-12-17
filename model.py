@@ -1,20 +1,15 @@
 """
 CookShare Chatbot Model
-Wrapper cho llama-cpp-python với model đã train (.gguf)
-CHỈ dùng model đã train - KHÔNG có fallback
+Sử dụng Fine-tuned Model hoặc Hugging Face Inference API
 """
 
 import os
 from typing import List, Tuple, Optional
+import requests
 
 class CookShareChatbot:
     """
     CookBot - AI tư vấn món ăn cho ứng dụng CookShare
-    
-    Kiến trúc:
-    - Model: Fine-tuned Qwen2-0.5B → cookshare.gguf
-    - Engine: llama-cpp-python
-    - CHỈ dùng model đã train - KHÔNG có fallback
     
     Features:
     - Gợi ý công thức từ nguyên liệu
@@ -29,90 +24,117 @@ class CookShareChatbot:
     def __init__(self):
         """
         Initialize chatbot
-        CHỈ dùng model đã train (cookshare.gguf)
-        KHÔNG có fallback về model chưa train
+        Priority: Fine-tuned model > Inference API > Base model
         """
-        # Config paths
-        self.gguf_model_path = os.getenv("GGUF_MODEL_PATH", "models/cookshare.gguf")
+        # Config
+        self.use_inference_api = os.getenv("USE_INFERENCE_API", "true").lower() == "true"
+        self.api_token = os.getenv("HF_TOKEN", "")
         
-        # Engine state
-        self.llm = None  # llama-cpp model
+        # Model paths
+        self.finetuned_model_path = os.getenv("FINETUNED_MODEL_PATH", "models/cookbot-finetuned")
+        self.base_model_name = "microsoft/Phi-3-mini-4k-instruct"
         
-        # System prompt (context cơ bản - model đã học từ training data)
-        self.system_prompt = "Bạn là CookBot - AI tư vấn món ăn của CookShare. Trả lời thân thiện bằng tiếng Việt."
+        # Current model (will be set later)
+        self.model = None
+        self.tokenizer = None
+        self.model_loaded = False
+        
+        # System prompt (QUAN TRỌNG: Giúp model trả lời chính xác, đúng format như training data)
+        self.system_prompt = """Bạn là CookBot - AI tư vấn món ăn của CookShare. 
+
+QUY TẮC QUAN TRỌNG:
+1. CHỈ đưa ra thông tin CHÍNH XÁC về nguyên liệu, công thức nấu ăn
+2. KHÔNG được bịa đặt nguyên liệu không tồn tại (như xà phòng, bột nước, nước thay nước, etc.)
+3. CHỈ dùng nguyên liệu thực phẩm THẬT: thịt, rau, gia vị, nước mắm, đường, muối, dầu ăn, etc.
+4. Trả lời theo FORMAT trong training data:
+   - Dùng emoji phù hợp (🍚 🍜 🥢 🍳)
+   - Có thông tin: ⏱ Thời gian, 📊 Độ khó, 👥 Khẩu phần
+   - Liệt kê nguyên liệu rõ ràng
+   - Hướng dẫn từng bước chi tiết
+   - Có mẹo nấu ăn
+5. Trả lời NGẮN GỌN, RÕ RÀNG, DỄ HIỂU
+6. Nếu không chắc chắn, hãy nói "Tôi chưa có thông tin chính xác về món này"
+7. Luôn nhắc nhở về an toàn thực phẩm khi cần
+
+Trả lời thân thiện bằng tiếng Việt."""
         
         # Initialize
         self._initialize()
     
     def _initialize(self):
-        """Initialize model engine - CHỈ dùng model đã train"""
-        # Kiểm tra file GGUF có tồn tại không
-        if not os.path.exists(self.gguf_model_path):
-            warning_msg = f"⚠️  CHƯA TÌM THẤY MODEL: {self.gguf_model_path}\n" \
-                         f"👉 Service sẽ start nhưng chưa thể trả lời.\n" \
-                         f"👉 Upload file model qua Railway CLI: railway upload models/cookshare.gguf\n" \
-                         f"👉 Sau đó restart service."
-            print(warning_msg)
-            self.llm = None  # Model chưa load
-            return
-        
-        print(f"🔍 Tìm thấy model đã train: {self.gguf_model_path}")
-        self._load_gguf_model()
+        """Initialize model hoặc API"""
+        # Thử load fine-tuned model trước
+        if os.path.exists(self.finetuned_model_path) and not self.use_inference_api:
+            print(f"🔍 Tìm thấy fine-tuned model: {self.finetuned_model_path}")
+            self._load_finetuned_model()
+        elif self.use_inference_api and self.api_token:
+            print("✅ Sử dụng Hugging Face Inference API")
+        else:
+            print("⚠️  Không có fine-tuned model, sẽ dùng Inference API")
+            self.use_inference_api = True
     
-    def _load_gguf_model(self):
-        """Load GGUF model với llama-cpp-python - Model đã train là bắt buộc"""
+    def _load_finetuned_model(self):
+        """Load fine-tuned model (LoRA)"""
         try:
-            from llama_cpp import Llama
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from peft import PeftModel
+            import torch
             
-            print(f"📥 Đang load model đã train...")
+            print(f"📥 Đang load fine-tuned model...")
             
-            # Detect GPU (trên Railway thường không có GPU)
-            n_gpu_layers = 0
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    n_gpu_layers = -1  # Use all GPU layers
-                    print(f"🎮 GPU detected: {torch.cuda.get_device_name(0)}")
-            except ImportError:
-                pass
+            # Load tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(self.finetuned_model_path)
             
-            # Load model đã train
-            # Tối ưu cho tốc độ: giảm n_ctx, tắt verbose, tăng threads, dùng mmap
-            self.llm = Llama(
-                model_path=self.gguf_model_path,
-                n_ctx=512,            # Giảm context window xuống 512 để tăng tốc đáng kể
-                n_batch=128,          # Giảm batch size xuống 128 để tăng tốc
-                n_gpu_layers=n_gpu_layers,
-                verbose=False,        # Tắt verbose để tăng tốc
-                n_threads=8,          # Tăng threads (Railway có 8 vCPUs)
-                use_mmap=True,        # Dùng memory mapping để tăng tốc load
-                use_mlock=False       # Không lock memory (tiết kiệm RAM)
+            # Load base model
+            base_model = AutoModelForCausalLM.from_pretrained(
+                self.base_model_name,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                device_map="auto" if torch.cuda.is_available() else None,
+                trust_remote_code=True
             )
             
-            print("✅ Model đã train loaded successfully!")
+            # Load LoRA adapter
+            self.model = PeftModel.from_pretrained(base_model, self.finetuned_model_path)
+            self.model.eval()
             
-        except ImportError:
-            error_msg = "❌ llama-cpp-python chưa được cài đặt.\n" \
-                       "👉 Model đã train yêu cầu llama-cpp-python. " \
-                       "Vui lòng cài đặt trong Dockerfile."
-            print(error_msg)
-            raise RuntimeError(error_msg)
+            self.model_loaded = True
+            self.use_inference_api = False
+            print("✅ Fine-tuned model loaded successfully!")
             
         except Exception as e:
-            error_msg = f"❌ KHÔNG THỂ LOAD MODEL ĐÃ TRAIN: {e}\n" \
-                       "👉 File GGUF có thể bị corrupt hoặc convert không đúng.\n" \
-                       "👉 Cần re-upload file lên Google Drive hoặc convert lại."
-            print(error_msg)
-            # Không raise error, để service vẫn start được
-            # Model sẽ được load lại khi có request (nếu file được fix)
-            self.llm = None
+            print(f"❌ Lỗi load fine-tuned model: {e}")
+            print("Falling back to Inference API...")
+            self.use_inference_api = True
+            self.model_loaded = False
     
-    def _format_prompt(self, messages: List[dict]) -> str:
+    def _load_base_model(self):
+        """Load base model (fallback)"""
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+            
+            print(f"📥 Đang load base model: {self.base_model_name}")
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.base_model_name,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                device_map="auto" if torch.cuda.is_available() else None,
+                trust_remote_code=True
+            )
+            
+            self.model_loaded = True
+            print("✅ Base model loaded successfully!")
+            
+        except Exception as e:
+            print(f"❌ Lỗi load base model: {e}")
+            self.use_inference_api = True
+    
+    def _format_messages(self, messages: List[dict]) -> str:
         """
-        Format messages sang ChatML format
-        Compatible với nhiều model (Qwen, Phi, Llama, etc.)
+        Format messages theo Phi-3 chat template
         """
-        prompt = ""
+        formatted = ""
         has_system = False
         
         for msg in messages:
@@ -120,60 +142,112 @@ class CookShareChatbot:
             content = msg["content"]
             
             if role == "system":
-                prompt += f"<|im_start|>system\n{content}<|im_end|>\n"
+                formatted += f"<|system|>\n{content}<|end|>\n"
                 has_system = True
             elif role == "user":
-                prompt += f"<|im_start|>user\n{content}<|im_end|>\n"
+                formatted += f"<|user|>\n{content}<|end|>\n"
             elif role == "assistant":
-                prompt += f"<|im_start|>assistant\n{content}<|im_end|>\n"
+                formatted += f"<|assistant|>\n{content}<|end|>\n"
         
         # Thêm system prompt nếu chưa có
         if not has_system:
-            prompt = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n" + prompt
+            formatted = f"<|system|>\n{self.system_prompt}<|end|>\n" + formatted
         
-        # Trigger assistant response
-        prompt += "<|im_start|>assistant\n"
+        # Thêm assistant tag để model tiếp tục
+        formatted += "<|assistant|>\n"
         
-        return prompt
+        return formatted
     
-    def _generate_gguf(self, messages: List[dict]) -> str:
+    def _call_inference_api(self, messages: List[dict]) -> str:
         """
-        Generate response từ GGUF model
+        Gọi Hugging Face Inference API
+        """
+        # Thử fine-tuned model trên HF Hub trước, rồi base model
+        model_to_use = os.getenv("HF_MODEL_ID", self.base_model_name)
+        api_url = f"https://api-inference.huggingface.co/models/{model_to_use}"
+        
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
+        
+        payload = {
+            "inputs": self._format_messages(messages),
+            "parameters": {
+                "max_new_tokens": 1024,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "do_sample": True,
+                "return_full_text": False
+            }
+        }
+        
+        try:
+            response = requests.post(api_url, json=payload, headers=headers, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+            
+            if isinstance(result, list) and len(result) > 0:
+                text = result[0].get("generated_text", "")
+            elif isinstance(result, dict):
+                text = result.get("generated_text", "")
+            else:
+                text = "Xin lỗi, mình không thể trả lời câu hỏi này."
+            
+            # Clean up response
+            text = self._clean_response(text)
+            return text
+            
+        except requests.exceptions.RequestException as e:
+            return f"Xin lỗi, có lỗi kết nối: {str(e)}"
+    
+    def _generate_local(self, messages: List[dict]) -> str:
+        """
+        Generate response từ local model
         """
         try:
-            prompt = self._format_prompt(messages)
+            import torch
             
-            output = self.llm(
-                prompt,
-                max_tokens=256,       # Giảm xuống 256 để tăng tốc đáng kể (vẫn đủ cho câu trả lời ngắn)
-                temperature=0.7,
-                top_p=0.9,
-                stop=["<|im_end|>", "<|im_start|>"],  # Stop sớm khi gặp stop token
-                echo=False
+            formatted_input = self._format_messages(messages)
+            inputs = self.tokenizer(formatted_input, return_tensors="pt")
+            
+            if torch.cuda.is_available():
+                inputs = {k: v.cuda() for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                    temperature=0.7,
+                    top_p=0.9,
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.eos_token_id
+                )
+            
+            # Decode only new tokens
+            response = self.tokenizer.decode(
+                outputs[0][inputs["input_ids"].shape[1]:], 
+                skip_special_tokens=True
             )
             
-            response = output["choices"][0]["text"]
-            return self._clean_response(response)
+            # Clean up
+            response = self._clean_response(response)
+            return response
             
         except Exception as e:
             return f"Xin lỗi, có lỗi xảy ra: {str(e)}"
     
-    
     def _clean_response(self, text: str) -> str:
-        """Clean up response text"""
-        # Remove common tags
-        tags_to_remove = [
-            "<|im_end|>", "<|im_start|>", "<|end|>", 
-            "<|assistant|>", "<|user|>", "<|system|>"
-        ]
-        for tag in tags_to_remove:
+        """
+        Clean up response text
+        """
+        # Remove trailing tags
+        for tag in ["<|end|>", "<|assistant|>", "<|user|>", "<|system|>"]:
             text = text.replace(tag, "")
         
-        # Clean up multiple newlines (giữ lại \n\n nhưng loại bỏ \n\n\n\n...)
-        import re
-        text = re.sub(r'\n{3,}', '\n\n', text)  # Thay nhiều \n bằng \n\n
+        # Strip whitespace
+        text = text.strip()
         
-        return text.strip()
+        return text
     
     def get_response(self, user_message: str, history: List[Tuple[str, str]] = None) -> str:
         """
@@ -186,21 +260,14 @@ class CookShareChatbot:
         Returns:
             Response từ chatbot
         """
-        # Kiểm tra model đã load chưa
-        if self.llm is None:
-            if not os.path.exists(self.gguf_model_path):
-                return "⚠️ Model chưa được upload. Vui lòng upload file cookshare.gguf qua Railway CLI và restart service."
-            # Thử load lại model (có thể đã upload sau khi start)
-            print("🔄 Thử load model lại...")
-            self._load_gguf_model()
-            if self.llm is None:
-                return "⚠️ Không thể load model. Vui lòng kiểm tra logs."
-        
         if history is None:
             history = []
         
         # Build messages
-        messages = [{"role": "system", "content": self.system_prompt}]
+        messages = []
+        
+        # Add system prompt
+        messages.append({"role": "system", "content": self.system_prompt})
         
         # Add history
         for user_msg, assistant_msg in history:
@@ -210,38 +277,39 @@ class CookShareChatbot:
         # Add current message
         messages.append({"role": "user", "content": user_message})
         
-        # Generate response từ model đã train
-        response = self._generate_gguf(messages)
+        # Get response
+        if self.use_inference_api or not self.model_loaded:
+            response = self._call_inference_api(messages)
+        else:
+            response = self._generate_local(messages)
         
         return response.strip()
     
     def get_model_info(self) -> dict:
         """Get info về model đang dùng"""
         return {
-            "engine": "llama-cpp-python",
-            "model_path": self.gguf_model_path,
-            "model_loaded": self.llm is not None,
-            "model_type": "Fine-tuned Qwen2-0.5B (cookshare.gguf)",
+            "using_inference_api": self.use_inference_api,
+            "model_loaded": self.model_loaded,
+            "finetuned_path": self.finetuned_model_path if os.path.exists(self.finetuned_model_path) else None,
+            "base_model": self.base_model_name,
         }
 
 
 # Test
 if __name__ == "__main__":
-    print("=" * 50)
-    print("🤖 Testing CookBot")
-    print("=" * 50)
+    print("🤖 Testing CookBot...")
     
     bot = CookShareChatbot()
-    print(f"\n📊 Model info: {bot.get_model_info()}")
+    print(f"Model info: {bot.get_model_info()}")
     
     # Test questions
     test_questions = [
-        "Xin chào!",
+        "Xin chào",
         "Mình có trứng và cà chua, làm món gì?",
-        "Hướng dẫn cách làm phở bò",
+        "Cách làm phở bò?",
     ]
     
     for q in test_questions:
         print(f"\n👤 User: {q}")
         response = bot.get_response(q)
-        print(f"🤖 Bot: {response[:300]}..." if len(response) > 300 else f"🤖 Bot: {response}")
+        print(f"🤖 Bot: {response[:200]}..." if len(response) > 200 else f"🤖 Bot: {response}")
