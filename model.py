@@ -77,12 +77,14 @@ class CookShareChatbot:
                 pass
             
             # Load model đã train
+            # Thử với verbose=True để xem lỗi chi tiết
             self.llm = Llama(
                 model_path=self.gguf_model_path,
                 n_ctx=2048,           # Context window
                 n_batch=512,          # Batch size for prompt processing
                 n_gpu_layers=n_gpu_layers,
-                verbose=False
+                verbose=True,         # Enable verbose để debug
+                n_threads=4           # Số threads cho CPU
             )
             
             print("✅ Model đã train loaded successfully!")
@@ -96,9 +98,12 @@ class CookShareChatbot:
             
         except Exception as e:
             error_msg = f"❌ KHÔNG THỂ LOAD MODEL ĐÃ TRAIN: {e}\n" \
-                       "👉 Model đã train là bắt buộc. Không thể fallback về model chưa train."
+                       "👉 File GGUF có thể bị corrupt hoặc convert không đúng.\n" \
+                       "👉 Cần re-upload file lên Google Drive hoặc convert lại."
             print(error_msg)
-            raise RuntimeError(error_msg)
+            # Không raise error, để service vẫn start được
+            # Model sẽ được load lại khi có request (nếu file được fix)
+            self.llm = None
     
     def _format_prompt(self, messages: List[dict]) -> str:
         """
