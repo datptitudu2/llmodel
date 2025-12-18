@@ -154,7 +154,8 @@ class CookShareChatbot:
                 temperature=0.5,      # Giảm temperature để response chính xác hơn, ít hallucination
                 top_p=0.8,            # Giảm top_p để tập trung vào tokens có xác suất cao
                 top_k=40,             # Giới hạn top_k để tránh chọn tokens lạ
-                stop=["<|im_end|>", "<|im_start|>"],  # Stop sớm khi gặp stop token
+                repeat_penalty=1.3,   # Tăng penalty để tránh lặp lại (1.0 = không penalty, >1.0 = penalty)
+                stop=["<|im_end|>", "<|im_start|>", "\n\n\n"],  # Stop sớm khi gặp stop token hoặc nhiều newlines
                 echo=False
             )
             
@@ -166,20 +167,85 @@ class CookShareChatbot:
     
     def _clean_response(self, text: str) -> str:
         """
-        Clean up response text
+        Clean up response text - Remove duplicates và format
         """
+        import re
+        
         # Remove trailing tags
         for tag in ["<|im_end|>", "<|im_start|>assistant", "<|im_start|>user", "<|im_start|>system"]:
             text = text.replace(tag, "")
         
         # Clean up multiple newlines (giữ lại \n\n nhưng loại bỏ \n\n\n\n...)
-        import re
         text = re.sub(r'\n{3,}', '\n\n', text)  # Thay nhiều \n bằng \n\n
+        
+        # Remove duplicate sentences/phrases
+        # Split thành sentences (dựa vào dấu chấm, chấm hỏi, chấm than, xuống dòng)
+        sentences = re.split(r'[.!?]\s+|\n+', text)
+        seen = set()
+        unique_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            # Normalize sentence để so sánh (lowercase, remove extra spaces)
+            normalized = re.sub(r'\s+', ' ', sentence.lower().strip())
+            
+            # Bỏ qua câu quá ngắn (có thể là dấu câu)
+            if len(normalized) < 5:
+                unique_sentences.append(sentence)
+                continue
+            
+            # Kiểm tra duplicate (cho phép một số khác biệt nhỏ)
+            is_duplicate = False
+            for seen_sentence in seen:
+                # Nếu câu mới giống >80% với câu đã thấy thì coi là duplicate
+                similarity = self._calculate_similarity(normalized, seen_sentence)
+                if similarity > 0.8:
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                seen.add(normalized)
+                unique_sentences.append(sentence)
+        
+        # Join lại thành text
+        text = '\n'.join(unique_sentences)
+        
+        # Remove duplicate lines (exact match)
+        lines = text.split('\n')
+        seen_lines = set()
+        unique_lines = []
+        for line in lines:
+            line_stripped = line.strip()
+            if line_stripped and line_stripped not in seen_lines:
+                seen_lines.add(line_stripped)
+                unique_lines.append(line)
+        text = '\n'.join(unique_lines)
         
         # Strip whitespace
         text = text.strip()
         
         return text
+    
+    def _calculate_similarity(self, s1: str, s2: str) -> float:
+        """
+        Tính similarity giữa 2 strings (simple word overlap)
+        """
+        words1 = set(s1.split())
+        words2 = set(s2.split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        
+        if not union:
+            return 0.0
+        
+        return len(intersection) / len(union)
     
     def get_response(self, user_message: str, history: List[Tuple[str, str]] = None) -> str:
         """
